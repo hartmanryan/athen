@@ -23,17 +23,21 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. HMAC Signature Verification ALWAYS (Crucial for nCino Invalid Request Test to pass)
-    if (secret) {
-      const isValid = verifyNcinoSignature(rawBody, signatureHeader, secret);
-      if (!isValid) {
-        console.warn("[Webhook] Invalid HMAC signature received. Rejecting.");
-        return NextResponse.json(
-          { error: "Unauthorized: Invalid Webhook Signature" },
-          { status: 401 }
-        );
-      }
-    } else {
-      console.warn("[Webhook] NCINO_WEBHOOK_SECRET not configured. Skipping HMAC verification.");
+    if (!secret) {
+      console.error("[Webhook] NCINO_WEBHOOK_SECRET is completely missing in Vercel Environment Variables! Failing all requests.");
+      return NextResponse.json(
+        { error: "Internal Server Error: Webhook Secret Not Configured" },
+        { status: 500 }
+      );
+    }
+
+    const isValid = verifyNcinoSignature(rawBody, signatureHeader, secret);
+    if (!isValid) {
+      console.warn("[Webhook] Invalid HMAC signature received. Rejecting (This is expected during nCino's Invalid Request Test).");
+      return NextResponse.json(
+        { error: "Unauthorized: Invalid Webhook Signature" },
+        { status: 401 }
+      );
     }
 
     // 3. Extract Recipient & Milestone Info
