@@ -8,8 +8,11 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
+    // nCino signature is sometimes in x-ncino-signature or x-hub-signature-256
     const signatureHeader = req.headers.get("x-hub-signature-256") || req.headers.get("x-ncino-signature");
-    const secret = process.env.NCINO_WEBHOOK_SECRET;
+    
+    // Check for both correct spelling and the common "ncinco" typo
+    const secret = process.env.NCINO_WEBHOOK_SECRET || process.env.NCINCO_WEBHOOK_SECRET;
 
     // 1. Parse JSON Payload
     let payload: any;
