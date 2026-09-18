@@ -64,15 +64,21 @@ export function verifyNcinoSignature(
   secret: string
 ): boolean {
   if (!signatureHeader || !secret) {
+    console.error("[Webhook] Missing signature header or secret");
     return false;
   }
+
+  const cleanSecret = secret.trim();
 
   // Remove `sha256=` prefix if present
   const cleanedSignature = signatureHeader.replace(/^sha256=/, "").trim();
 
-  const hmac = crypto.createHmac("sha256", secret);
+  const hmac = crypto.createHmac("sha256", cleanSecret);
   hmac.update(rawBody, "utf8");
   const expectedSignature = hmac.digest("hex");
+
+  console.log(`[Webhook Debug] Received Signature: ${cleanedSignature}`);
+  console.log(`[Webhook Debug] Expected Signature: ${expectedSignature}`);
 
   try {
     return crypto.timingSafeEqual(
@@ -80,7 +86,7 @@ export function verifyNcinoSignature(
       Buffer.from(expectedSignature, "hex")
     );
   } catch (err) {
-    // If lengths mismatch or invalid hex format
+    console.error("[Webhook] Signature comparison failed (length mismatch?)");
     return false;
   }
 }
