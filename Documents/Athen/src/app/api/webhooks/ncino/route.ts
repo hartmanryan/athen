@@ -8,8 +8,17 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
+    // Log all headers to debug what nCino is actually sending
+    const allHeaders = Object.fromEntries(req.headers.entries());
+    console.log("[Webhook Debug] All Request Headers:", JSON.stringify(allHeaders, null, 2));
+
     // nCino signature is sometimes in x-ncino-signature or x-hub-signature-256
-    const signatureHeader = req.headers.get("x-hub-signature-256") || req.headers.get("x-ncino-signature");
+    const signatureHeader = 
+      req.headers.get("x-hub-signature-256") || 
+      req.headers.get("x-ncino-signature") || 
+      req.headers.get("x-simplenexus-signature") ||
+      req.headers.get("x-sn-signature") ||
+      req.headers.get("x-signature");
     
     // Check for both correct spelling and the common "ncinco" typo
     const secret = process.env.NCINO_WEBHOOK_SECRET || process.env.NCINCO_WEBHOOK_SECRET;
