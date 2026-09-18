@@ -27,7 +27,7 @@ export default function Dashboard() {
     city: "San Diego",
     state: "CA",
     zip: "92101",
-    milestone: "Clear to Close",
+    milestone: "Application",
   });
 
   const webhookUrl = typeof window !== "undefined"
@@ -191,10 +191,13 @@ export default function Dashboard() {
                 onChange={(e) => setTestForm({ ...testForm, milestone: e.target.value })}
                 className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500"
               >
-                <option value="Application Completed">Application Completed</option>
-                <option value="Underwriting Approved">Underwriting Approved</option>
-                <option value="Clear to Close">Clear to Close</option>
-                <option value="Funded">Funded</option>
+                <option value="Application">Application</option>
+                <option value="Processing">Processing</option>
+                <option value="Underwriting">Underwriting</option>
+                <option value="Approved With Conditions">Approved With Conditions</option>
+                <option value="Final Approval">Final Approval</option>
+                <option value="Closing Docs">Closing Docs</option>
+                <option value="Settlement">Settlement</option>
                 <option value="Unmapped Test Event">Unmapped Test Event</option>
               </select>
             </div>
