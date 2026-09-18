@@ -22,27 +22,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Identify if it's a validation ping test from nCino
-    const isValidationTest = 
-      payload.test ||
-      payload.event === "ping" ||
-      payload.event_type === "test" ||
-      payload.type === "validation" ||
-      payload.action === "test" ||
-      Object.keys(payload).length <= 2;
-
-    // 2. HMAC Signature Verification (if secret is configured and NOT a validation ping)
-    if (secret && !isValidationTest) {
+    // 2. HMAC Signature Verification ALWAYS (Crucial for nCino Invalid Request Test to pass)
+    if (secret) {
       const isValid = verifyNcinoSignature(rawBody, signatureHeader, secret);
       if (!isValid) {
-        console.warn("[Webhook] Invalid HMAC signature received.");
+        console.warn("[Webhook] Invalid HMAC signature received. Rejecting.");
         return NextResponse.json(
           { error: "Unauthorized: Invalid Webhook Signature" },
           { status: 401 }
         );
       }
-    } else if (secret && isValidationTest) {
-      console.log("[Webhook] Bypassing HMAC verification for nCino validation ping test.");
     } else {
       console.warn("[Webhook] NCINO_WEBHOOK_SECRET not configured. Skipping HMAC verification.");
     }
@@ -51,30 +40,13 @@ export async function POST(req: NextRequest) {
     const extractedData = extractRecipientFromPayload(payload);
 
     if (!extractedData) {
-      // Check if this is an nCino validation test request or ping event
-      if (
-        payload.test ||
-        payload.event === "ping" ||
-        payload.event_type === "test" ||
-        payload.type === "validation" ||
-        payload.action === "test" ||
-        Object.keys(payload).length <= 2
-      ) {
-        console.log("[Webhook] Received nCino validation ping / test request. Responding 200 OK.");
-        return NextResponse.json(
-          {
-            success: true,
-            message: "nCino Webhook Validation Test Passed Successfully",
-          },
-          { status: 200 }
-        );
-      }
-
-      console.warn("[Webhook] Unprocessable payload received:", JSON.stringify(payload));
+      // If the signature was valid but there's no recipient data, it is likely an nCino Valid Request Test or ping.
+      // We must return 200 OK so nCino marks the Valid Request Test as "Passed".
+      console.log("[Webhook] Payload missing recipient data (likely a ping/test). Returning 200 OK.");
       return NextResponse.json(
         {
           success: true,
-          message: "Webhook received, but payload contained no recipient address data to process.",
+          message: "Webhook received and authenticated, but no recipient data to process.",
         },
         { status: 200 }
       );
