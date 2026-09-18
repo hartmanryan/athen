@@ -1,0 +1,130 @@
+import { NextRequest, NextResponse } from "next/server";
+import { verifyNcinoSignature, extractRecipientFromPayload } from "@/lib/ncino";
+import { getMailingListForMilestone } from "@/config/milestone-map";
+import { addRecipientToThanksIO } from "@/lib/thanksio";
+
+export const runtime = "nodejs";
+
+export async function POST(req: NextRequest) {
+  try {
+    const rawBody = await req.text();
+    const signatureHeader = req.headers.get("x-hub-signature-256") || req.headers.get("x-ncino-signature");
+    const secret = process.env.NCINO_WEBHOOK_SECRET;
+
+    // 1. HMAC Signature Verification (if secret is configured)
+    if (secret) {
+      const isValid = verifyNcinoSignature(rawBody, signatureHeader, secret);
+      if (!isValid) {
+        console.warn("[Webhook] Invalid HMAC signature received.");
+        return NextResponse.json(
+          { error: "Unauthorized: Invalid Webhook Signature" },
+          { status: 401 }
+        );
+      }
+    } else {
+      console.warn("[Webhook] NCINO_WEBHOOK_SECRET not configured. Skipping HMAC verification.");
+    }
+
+    // 2. Parse JSON Payload
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (parseErr) {
+      return NextResponse.json(
+        { error: "Bad Request: Invalid JSON Payload" },
+        { status: 400 }
+      );
+    }
+
+    // 3. Extract Recipient & Milestone Info
+    const extractedData = extractRecipientFromPayload(payload);
+
+    if (!extractedData) {
+      return NextResponse.json(
+        {
+          error: "Unprocessable Entity: Missing required recipient or milestone details in payload",
+        },
+        { status: 422 }
+      );
+    }
+
+    const { name, address, city, state, zip, milestoneName, loanId } = extractedData;
+
+    // 4. Determine Thanks.io Mailing List ID for this Milestone
+    const mailingListId = getMailingListForMilestone(milestoneName);
+
+    if (!mailingListId) {
+      console.log(
+        `[Webhook] Milestone '${milestoneName}' is not mapped to any Thanks.io mailing list. Skipping.`
+      );
+      return NextResponse.json(
+        {
+          message: `Ignored: Milestone '${milestoneName}' is not mapped to a Thanks.io mailing list.`,
+          milestone: milestoneName,
+        },
+        { status: 200 }
+      );
+    }
+
+    // 5. Send Recipient to Thanks.io
+    const thanksResult = await addRecipientToThanksIO({
+      name,
+      address,
+      city,
+      state,
+      zip,
+      mailing_list_id: mailingListId,
+      custom_fields: {
+        source: "nCino Mortgage Webhook",
+        milestone: milestoneName,
+        loan_id: loanId || "",
+        received_at: new Date().toISOString(),
+      },
+    });
+
+    if (!thanksResult.success) {
+      console.error("[Webhook] Failed to push contact to Thanks.io:", thanksResult.error);
+      return NextResponse.json(
+        {
+          error: "Thanks.io API Error",
+          details: thanksResult.error,
+        },
+        { status: 502 }
+      );
+    }
+
+    console.log(
+      `[Webhook Success] Added ${name} to Thanks.io list '${mailingListId}' for milestone '${milestoneName}'`
+    );
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Recipient added to Thanks.io mailing list successfully",
+        recipient: {
+          name,
+          milestone: milestoneName,
+          mailingListId,
+        },
+        thanksIoResponse: thanksResult.data,
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    console.error("[Webhook Handler Exception]", error);
+    return NextResponse.json(
+      { error: "Internal Server Error", details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// Simple GET endpoint for checking endpoint status from browser / nCino webhooks ping
+export async function GET() {
+  return NextResponse.json({
+    status: "active",
+    service: "nCino Mortgage to Thanks.io Webhook Bridge",
+    timestamp: new Date().toISOString(),
+    endpoint: "/api/webhooks/ncino",
+  });
+}
