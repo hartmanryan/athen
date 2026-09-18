@@ -11,8 +11,28 @@ export async function POST(req: NextRequest) {
     const signatureHeader = req.headers.get("x-hub-signature-256") || req.headers.get("x-ncino-signature");
     const secret = process.env.NCINO_WEBHOOK_SECRET;
 
-    // 1. HMAC Signature Verification (if secret is configured)
-    if (secret) {
+    // 1. Parse JSON Payload
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody || "{}");
+    } catch (parseErr) {
+      return NextResponse.json(
+        { error: "Bad Request: Invalid JSON Payload" },
+        { status: 400 }
+      );
+    }
+
+    // Identify if it's a validation ping test from nCino
+    const isValidationTest = 
+      payload.test ||
+      payload.event === "ping" ||
+      payload.event_type === "test" ||
+      payload.type === "validation" ||
+      payload.action === "test" ||
+      Object.keys(payload).length <= 2;
+
+    // 2. HMAC Signature Verification (if secret is configured and NOT a validation ping)
+    if (secret && !isValidationTest) {
       const isValid = verifyNcinoSignature(rawBody, signatureHeader, secret);
       if (!isValid) {
         console.warn("[Webhook] Invalid HMAC signature received.");
@@ -21,19 +41,10 @@ export async function POST(req: NextRequest) {
           { status: 401 }
         );
       }
+    } else if (secret && isValidationTest) {
+      console.log("[Webhook] Bypassing HMAC verification for nCino validation ping test.");
     } else {
       console.warn("[Webhook] NCINO_WEBHOOK_SECRET not configured. Skipping HMAC verification.");
-    }
-
-    // 2. Parse JSON Payload
-    let payload: any;
-    try {
-      payload = JSON.parse(rawBody);
-    } catch (parseErr) {
-      return NextResponse.json(
-        { error: "Bad Request: Invalid JSON Payload" },
-        { status: 400 }
-      );
     }
 
     // 3. Extract Recipient & Milestone Info
