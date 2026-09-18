@@ -14,9 +14,13 @@ import {
   ShieldCheck,
   Layers,
   Sparkles,
+  Lock,
 } from "lucide-react";
 
 export default function Dashboard() {
+  const [unlocked, setUnlocked] = useState(false);
+  const [passcode, setPasscode] = useState("");
+  
   const [copied, setCopied] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
@@ -57,6 +61,42 @@ export default function Dashboard() {
       setTesting(false);
     }
   };
+
+  if (!unlocked) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass-card p-8 w-full max-w-sm space-y-6">
+          <div className="flex flex-col items-center text-center space-y-2">
+            <div className="w-12 h-12 bg-sky-500/10 rounded-full flex items-center justify-center mb-2">
+              <Lock className="w-6 h-6 text-sky-400" />
+            </div>
+            <h1 className="text-xl font-semibold text-slate-100">Protected Dashboard</h1>
+            <p className="text-sm text-slate-400">Enter passcode to access testing tools.</p>
+          </div>
+          
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            if (passcode === "athen2026") setUnlocked(true);
+            else alert("Incorrect passcode");
+          }} className="space-y-4">
+            <input
+              type="password"
+              placeholder="Passcode"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-4 py-3 text-sm text-center text-slate-200 focus:outline-none focus:border-sky-500"
+            />
+            <button
+              type="submit"
+              className="w-full py-3 bg-sky-600 hover:bg-sky-500 text-white font-medium text-sm rounded-lg transition"
+            >
+              Unlock Dashboard
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-10 space-y-8">
